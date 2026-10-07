@@ -1,6 +1,7 @@
 using WukongBenchmarkTests.Configuration;
 using WukongBenchmarkTests.Models;
 using System.Diagnostics;
+using System.Security.Cryptography;
 
 namespace WukongBenchmarkTests.Benchmarking;
 
@@ -26,6 +27,12 @@ public sealed class BenchmarkSuiteRunner
                 "GameUserSettings.ini не найден.",
                 gameSettingsPath);
         }
+
+        var originalConfigHash = CalculateSha256(gameSettingsPath);
+
+        Console.WriteLine(
+            $"SHA-256 исходного конфига: {originalConfigHash}");
+
 
         var cpuProfile =
             BenchmarkProfiles.CreateCpuProfile(
@@ -128,7 +135,10 @@ public sealed class BenchmarkSuiteRunner
 
             return new BenchmarkSuiteResult
             {
+                CpuProfile = cpuProfile,
                 Cpu = cpuResult,
+
+                GpuProfile = gpuProfile,
                 Gpu = gpuResult
             };
         }
@@ -148,6 +158,26 @@ public sealed class BenchmarkSuiteRunner
 
                 Console.WriteLine(
                     "Исходный конфиг восстановлен.");
+
+                var restoredConfigHash =
+                    CalculateSha256(
+                        gameSettingsPath);
+
+                Console.WriteLine(
+                    $"SHA-256 восстановленного конфига: {restoredConfigHash}");
+
+                if (!string.Equals(
+                        originalConfigHash,
+                        restoredConfigHash,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        "После завершения benchmark GameUserSettings.ini " +
+                        "не совпадает с исходным файлом.");
+                }
+
+                Console.WriteLine(
+                    "Целостность исходного конфига подтверждена.");
             }
             finally
             {
@@ -313,5 +343,18 @@ public sealed class BenchmarkSuiteRunner
             string.Join(
                 ", ",
                 processIds);
+    }
+
+    private static string CalculateSha256(
+        string path)
+    {
+        using var stream =
+            File.OpenRead(path);
+
+        var hash =
+            SHA256.HashData(stream);
+
+        return Convert.ToHexString(
+            hash);
     }
 }

@@ -1,29 +1,138 @@
 using WukongBenchmarkTests.Benchmarking;
+using WukongBenchmarkTests.Models;
+using WukongBenchmarkTests.Reporting;
+using WukongBenchmarkTests.System;
 
 var gameSettingsPath =
     @"C:\Program Files (x86)\Steam\steamapps\common\Black Myth Wukong Benchmark Tool\b1\Saved\Config\Windows\GameUserSettings.ini";
 
+var projectRoot =
+    Path.GetFullPath(
+        Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            ".."));
+
+var resultsDirectory =
+    Path.Combine(
+        projectRoot,
+        "results");
+
+var localArtifactsDirectory =
+    Path.Combine(
+        projectRoot,
+        "local-artifacts");
+
 var cpuCsvPath =
-    @"C:\Users\ars04\Desktop\wukong-benchmark-tests\research\cpu-benchmark.csv";
+    Path.Combine(
+        localArtifactsDirectory,
+        "cpu-benchmark.csv");
 
 var gpuCsvPath =
-    @"C:\Users\ars04\Desktop\wukong-benchmark-tests\research\gpu-benchmark.csv";
+    Path.Combine(
+        localArtifactsDirectory,
+        "gpu-benchmark.csv");
 
-var runner =
-    new BenchmarkSuiteRunner();
+Directory.CreateDirectory(
+    localArtifactsDirectory);
+
+using var cancellationSource =
+    new CancellationTokenSource();
+
+// Ctrl+C не обрывает процесс мгновенно.
+// Вместо этого запускается штатная отмена:
+// PresentMon и Wukong будут закрыты,
+// а оригинальный конфиг восстановлен через finally.
+Console.CancelKeyPress += (_, eventArgs) =>
+{
+    eventArgs.Cancel = true;
+
+    if (cancellationSource.IsCancellationRequested)
+    {
+        return;
+    }
+
+    Console.WriteLine();
+    Console.WriteLine(
+        "Получен запрос на остановку.");
+
+    Console.WriteLine(
+        "Завершаем текущие процессы и восстанавливаем настройки...");
+
+    cancellationSource.Cancel();
+};
 
 Console.WriteLine(
-    "=== Black Myth: Wukong CPU + GPU Benchmark ===");
+    "=== Black Myth: Wukong Benchmark Tool ===");
+
+Console.WriteLine();
 
 try
 {
-    var result =
-        await runner.RunAsync(
+    Console.WriteLine(
+        "Собираем информацию о системе...");
+
+    var systemInfoCollector =
+        new SystemInfoCollector();
+
+    var systemInfo =
+        systemInfoCollector.Collect();
+
+    PrintSystemInfo(
+        systemInfo);
+
+    Console.WriteLine();
+    Console.WriteLine(
+        "Запускаем полный CPU + GPU benchmark...");
+
+    var suiteRunner =
+        new BenchmarkSuiteRunner();
+
+    var suiteResult =
+        await suiteRunner.RunAsync(
             gameSettingsPath,
             cpuCsvPath,
             gpuCsvPath,
-            nativeWidth: 2560,
-            nativeHeight: 1600);
+            nativeWidth:
+                systemInfo.ScreenWidth,
+            nativeHeight:
+                systemInfo.ScreenHeight,
+            cancellationToken:
+                cancellationSource.Token);
+
+    var report =
+        new BenchmarkReport
+        {
+            TimestampUtc =
+                DateTimeOffset.UtcNow,
+
+            System =
+                systemInfo,
+
+            CpuProfile =
+                suiteResult.CpuProfile,
+
+            CpuResult =
+                suiteResult.Cpu,
+
+            GpuProfile =
+                suiteResult.GpuProfile,
+
+            GpuResult =
+                suiteResult.Gpu
+        };
+
+    var reportWriter =
+        new BenchmarkReportWriter();
+
+    var reportPath =
+        await reportWriter.WriteAsync(
+            report,
+            resultsDirectory,
+            cancellationSource.Token);
 
     Console.WriteLine();
     Console.WriteLine(
@@ -36,41 +145,37 @@ try
         "========================================");
 
     Console.WriteLine();
-    Console.WriteLine(
-        "CPU:");
 
-    Console.WriteLine(
-        $"  Средний FPS: {result.Cpu.AverageFps:F2}");
+    PrintBenchmarkResult(
+        "CPU",
+        suiteResult.Cpu);
 
-    Console.WriteLine(
-        $"  Минимальный FPS: {result.Cpu.MinimumFps:F2}");
+    Console.WriteLine();
 
-    Console.WriteLine(
-        $"  Максимальный FPS: {result.Cpu.MaximumFps:F2}");
-
-    Console.WriteLine(
-        $"  5-й перцентиль: {result.Cpu.Low5PercentFps:F2}");
+    PrintBenchmarkResult(
+        "GPU",
+        suiteResult.Gpu);
 
     Console.WriteLine();
 
     Console.WriteLine(
-        "GPU:");
+        "JSON-отчёт сохранён:");
 
     Console.WriteLine(
-        $"  Средний FPS: {result.Gpu.AverageFps:F2}");
-
-    Console.WriteLine(
-        $"  Минимальный FPS: {result.Gpu.MinimumFps:F2}");
-
-    Console.WriteLine(
-        $"  Максимальный FPS: {result.Gpu.MaximumFps:F2}");
-
-    Console.WriteLine(
-        $"  5-й перцентиль: {result.Gpu.Low5PercentFps:F2}");
+        reportPath);
 
     Console.WriteLine();
+
     Console.WriteLine(
         "Полный цикл benchmark успешно завершён.");
+}
+catch (OperationCanceledException)
+{
+    Console.WriteLine();
+    Console.WriteLine(
+        "Benchmark был отменён пользователем.");
+
+    Environment.ExitCode = 2;
 }
 catch (Exception exception)
 {
@@ -82,4 +187,87 @@ catch (Exception exception)
         exception);
 
     Environment.ExitCode = 1;
+}
+
+static void PrintSystemInfo(
+    SystemInfo system)
+{
+    Console.WriteLine();
+    Console.WriteLine(
+        "=== СИСТЕМА ===");
+
+    Console.WriteLine(
+        $"CPU: {system.CpuName}");
+
+    Console.WriteLine(
+        $"Ядра / потоки: " +
+        $"{system.CpuCores} / " +
+        $"{system.CpuLogicalProcessors}");
+
+    Console.WriteLine();
+
+    for (var index = 0;
+         index < system.Gpus.Count;
+         index++)
+    {
+        var gpu =
+            system.Gpus[index];
+
+        Console.WriteLine(
+            $"GPU {index + 1}: {gpu.Name}");
+
+        Console.WriteLine(
+            $"  Драйвер: " +
+            $"{gpu.DriverVersion ?? "не определён"}");
+    }
+
+    Console.WriteLine();
+
+    Console.WriteLine(
+        $"RAM: " +
+        $"{system.TotalMemoryGigabytes:F2} ГБ");
+
+    Console.WriteLine(
+        $"OS: {system.OperatingSystem}");
+
+    Console.WriteLine(
+        $"Архитектура: " +
+        $"{system.OsArchitecture}");
+
+    Console.WriteLine(
+        $"Основной экран: " +
+        $"{system.ScreenWidth}x" +
+        $"{system.ScreenHeight}");
+}
+
+static void PrintBenchmarkResult(
+    string name,
+    BenchmarkResult result)
+{
+    Console.WriteLine(
+        $"{name}:");
+
+    Console.WriteLine(
+        $"  Средний FPS: " +
+        $"{result.AverageFps:F2}");
+
+    Console.WriteLine(
+        $"  Минимальный FPS: " +
+        $"{result.MinimumFps:F2}");
+
+    Console.WriteLine(
+        $"  Максимальный FPS: " +
+        $"{result.MaximumFps:F2}");
+
+    Console.WriteLine(
+        $"  5-й перцентиль: " +
+        $"{result.Low5PercentFps:F2}");
+
+    Console.WriteLine(
+        $"  Количество кадров: " +
+        $"{result.FrameCount}");
+
+    Console.WriteLine(
+        $"  Длительность: " +
+        $"{result.DurationSeconds:F3} с");
 }
