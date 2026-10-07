@@ -4,8 +4,23 @@ using WukongBenchmarkTests.Reporting;
 using WukongBenchmarkTests.System;
 using WukongBenchmarkTests.Infrastructure;
 
+
+Console.WriteLine(
+    "Ищем установленный Black Myth: Wukong Benchmark Tool...");
+
+var installationLocator =
+    new WukongInstallationLocator();
+
+var installation =
+    installationLocator.Find();
+
 var gameSettingsPath =
-    @"C:\Program Files (x86)\Steam\steamapps\common\Black Myth Wukong Benchmark Tool\b1\Saved\Config\Windows\GameUserSettings.ini";
+    installation.GameSettingsPath;
+
+Console.WriteLine(
+    $"Wukong найден: {installation.RootPath}");
+
+Console.WriteLine();
 
 var projectRoot =
     Path.GetFullPath(
