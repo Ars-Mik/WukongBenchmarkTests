@@ -2,6 +2,7 @@ using WukongBenchmarkTests.Benchmarking;
 using WukongBenchmarkTests.Models;
 using WukongBenchmarkTests.Reporting;
 using WukongBenchmarkTests.System;
+using WukongBenchmarkTests.Infrastructure;
 
 var gameSettingsPath =
     @"C:\Program Files (x86)\Steam\steamapps\common\Black Myth Wukong Benchmark Tool\b1\Saved\Config\Windows\GameUserSettings.ini";
@@ -39,6 +40,12 @@ var gpuCsvPath =
 Directory.CreateDirectory(
     localArtifactsDirectory);
 
+var preflightOnly =
+    args.Any(argument =>
+        argument.Equals(
+            "--preflight-only",
+            StringComparison.OrdinalIgnoreCase));
+
 using var cancellationSource =
     new CancellationTokenSource();
 
@@ -72,6 +79,29 @@ Console.WriteLine();
 
 try
 {
+    Console.WriteLine(
+        "Проверяем окружение...");
+
+    var preflightChecker =
+        new PreflightChecker();
+
+    await preflightChecker.ValidateAsync(
+        gameSettingsPath,
+        resultsDirectory,
+        localArtifactsDirectory,
+        cancellationSource.Token);
+
+    if (preflightOnly)
+    {
+        Console.WriteLine();
+        Console.WriteLine(
+            "Режим --preflight-only: benchmark запускаться не будет.");
+
+        return;
+    }
+
+    Console.WriteLine();
+
     Console.WriteLine(
         "Собираем информацию о системе...");
 
