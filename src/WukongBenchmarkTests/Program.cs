@@ -1,48 +1,76 @@
 using WukongBenchmarkTests.Benchmarking;
 
-var csvPath =
-    @"C:\Users\ars04\Desktop\wukong-benchmark-tests\research\single-benchmark.csv";
+var gameSettingsPath =
+    @"C:\Program Files (x86)\Steam\steamapps\common\Black Myth Wukong Benchmark Tool\b1\Saved\Config\Windows\GameUserSettings.ini";
+
+var cpuCsvPath =
+    @"C:\Users\ars04\Desktop\wukong-benchmark-tests\research\cpu-benchmark.csv";
+
+var gpuCsvPath =
+    @"C:\Users\ars04\Desktop\wukong-benchmark-tests\research\gpu-benchmark.csv";
 
 var runner =
-    new BenchmarkRunner();
+    new BenchmarkSuiteRunner();
 
 Console.WriteLine(
-    "=== Black Myth: Wukong Benchmark ===");
-
-Console.WriteLine();
+    "=== Black Myth: Wukong CPU + GPU Benchmark ===");
 
 try
 {
     var result =
         await runner.RunAsync(
-            csvPath);
+            gameSettingsPath,
+            cpuCsvPath,
+            gpuCsvPath,
+            nativeWidth: 2560,
+            nativeHeight: 1600);
 
     Console.WriteLine();
     Console.WriteLine(
-        "=== Результат ===");
+        "========================================");
 
     Console.WriteLine(
-        $"Средний FPS: {result.AverageFps:F2}");
+        "=== ИТОГОВЫЕ РЕЗУЛЬТАТЫ ===");
 
     Console.WriteLine(
-        $"Минимальный FPS: {result.MinimumFps:F2}");
-
-    Console.WriteLine(
-        $"Максимальный FPS: {result.MaximumFps:F2}");
-
-    Console.WriteLine(
-        $"5-й перцентиль FPS: {result.Low5PercentFps:F2}");
-
-    Console.WriteLine(
-        $"Количество кадров: {result.FrameCount}");
-
-    Console.WriteLine(
-        $"Длительность benchmark: " +
-        $"{result.DurationSeconds:F3} с");
+        "========================================");
 
     Console.WriteLine();
     Console.WriteLine(
-        "Benchmark успешно завершён.");
+        "CPU:");
+
+    Console.WriteLine(
+        $"  Средний FPS: {result.Cpu.AverageFps:F2}");
+
+    Console.WriteLine(
+        $"  Минимальный FPS: {result.Cpu.MinimumFps:F2}");
+
+    Console.WriteLine(
+        $"  Максимальный FPS: {result.Cpu.MaximumFps:F2}");
+
+    Console.WriteLine(
+        $"  5-й перцентиль: {result.Cpu.Low5PercentFps:F2}");
+
+    Console.WriteLine();
+
+    Console.WriteLine(
+        "GPU:");
+
+    Console.WriteLine(
+        $"  Средний FPS: {result.Gpu.AverageFps:F2}");
+
+    Console.WriteLine(
+        $"  Минимальный FPS: {result.Gpu.MinimumFps:F2}");
+
+    Console.WriteLine(
+        $"  Максимальный FPS: {result.Gpu.MaximumFps:F2}");
+
+    Console.WriteLine(
+        $"  5-й перцентиль: {result.Gpu.Low5PercentFps:F2}");
+
+    Console.WriteLine();
+    Console.WriteLine(
+        "Полный цикл benchmark успешно завершён.");
 }
 catch (Exception exception)
 {
@@ -51,7 +79,7 @@ catch (Exception exception)
         "Benchmark завершился с ошибкой:");
 
     Console.Error.WriteLine(
-        exception.Message);
+        exception);
 
     Environment.ExitCode = 1;
 }

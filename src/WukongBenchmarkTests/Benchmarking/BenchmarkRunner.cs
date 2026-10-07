@@ -37,18 +37,19 @@ public sealed class BenchmarkRunner
         CancellationToken cancellationToken = default)
     {
         Process? benchmarkProcess = null;
-
-        Console.WriteLine(
-            "Запускаем PresentMon...");
-
-        _presentMonRunner.StartCapture(
-            csvPath,
-            TargetProcessName);
+        bool presentMonStarted = false;
 
         try
         {
-            // Даём PresentMon время создать ETW-сессию
-            // до запуска Wukong.
+            Console.WriteLine(
+                "Запускаем PresentMon...");
+
+            _presentMonRunner.StartCapture(
+                csvPath,
+                TargetProcessName);
+
+            presentMonStarted = true;
+
             await Task.Delay(
                 TimeSpan.FromSeconds(1),
                 cancellationToken);
@@ -83,19 +84,14 @@ public sealed class BenchmarkRunner
 
             Console.WriteLine(
                 "Завершение benchmark обнаружено.");
-        }
-        finally
-        {
+
             Console.WriteLine(
                 "Останавливаем PresentMon...");
 
             await _presentMonRunner.StopCaptureAsync();
-        }
 
-        try
-        {
-            // PresentMon уже остановлен, поэтому теперь
-            // CSV гарантированно содержит завершённый прогон.
+            presentMonStarted = false;
+
             await Task.Delay(
                 TimeSpan.FromMilliseconds(500),
                 cancellationToken);
@@ -103,24 +99,52 @@ public sealed class BenchmarkRunner
             Console.WriteLine(
                 "Анализируем результаты...");
 
-            var result =
-                _csvAnalyzer.Analyze(
-                    csvPath);
-
-            return result;
+            return _csvAnalyzer.Analyze(
+                csvPath);
         }
         finally
         {
-            // Wukong должен быть закрыт даже в том случае,
-            // если анализ CSV завершился ошибкой.
+            // Cleanup выполняем даже при timeout,
+            // ошибке UI или отмене операции.
+
+            if (presentMonStarted)
+            {
+                try
+                {
+                    Console.WriteLine(
+                        "Останавливаем PresentMon...");
+
+                    await _presentMonRunner.StopCaptureAsync();
+                }
+                catch (Exception exception)
+                {
+                    Console.Error.WriteLine(
+                        $"Не удалось корректно остановить PresentMon: " +
+                        $"{exception.Message}");
+                }
+            }
+
             if (benchmarkProcess is not null)
             {
-                await _processRunner.CloseAsync(
-                    benchmarkProcess,
-                    TimeSpan.FromSeconds(5),
-                    cancellationToken);
-
-                benchmarkProcess.Dispose();
+                try
+                {
+                    // Очистка не должна отменяться вместе
+                    // с основной операцией.
+                    await _processRunner.CloseAsync(
+                        benchmarkProcess,
+                        TimeSpan.FromSeconds(5),
+                        CancellationToken.None);
+                }
+                catch (Exception exception)
+                {
+                    Console.Error.WriteLine(
+                        $"Не удалось корректно закрыть Wukong: " +
+                        $"{exception.Message}");
+                }
+                finally
+                {
+                    benchmarkProcess.Dispose();
+                }
             }
         }
     }

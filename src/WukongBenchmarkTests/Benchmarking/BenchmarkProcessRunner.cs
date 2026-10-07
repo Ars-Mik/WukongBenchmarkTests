@@ -10,9 +10,7 @@ public sealed class BenchmarkProcessRunner
     private const string TargetProcessName =
         "b1-Win64-Shipping";
 
-    public async Task<Process> LaunchAsync(
-        TimeSpan timeout,
-        CancellationToken cancellationToken = default)
+    public async Task<Process> LaunchAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         EnsureBenchmarkIsNotAlreadyRunning();
 
@@ -100,76 +98,71 @@ public sealed class BenchmarkProcessRunner
             $"не появился за {timeout.TotalSeconds:F0} секунд.");
     }
 
-    public async Task CloseAsync(
-        Process process,
-        TimeSpan timeout,
+    public async Task CloseAsync( Process process, TimeSpan timeout,
         CancellationToken cancellationToken = default)
     {
         process.Refresh();
 
-        if (process.HasExited)
-        {
-            return;
-        }
-
         Console.WriteLine(
             "Закрываем Black Myth: Wukong Benchmark...");
 
-        // Сначала пытаемся закрыть приложение обычным способом,
-        // как если бы пользователь нажал кнопку закрытия окна.
-        var closeRequested =
-            process.CloseMainWindow();
-
-        if (closeRequested)
+        if (!process.HasExited)
         {
-            var stopwatch =
-                Stopwatch.StartNew();
+            // Сначала пытаемся закрыть приложение
+            var closeRequested =
+                process.CloseMainWindow();
 
-            while (stopwatch.Elapsed < timeout)
+            if (closeRequested)
             {
-                cancellationToken
-                    .ThrowIfCancellationRequested();
+                var stopwatch =
+                    Stopwatch.StartNew();
 
-                process.Refresh();
-
-                if (process.HasExited)
+                while (stopwatch.Elapsed < timeout)
                 {
-                    Console.WriteLine(
-                        "Wukong успешно закрыт.");
+                    cancellationToken
+                        .ThrowIfCancellationRequested();
 
-                    await CloseLauncherProcessesAsync(
+                    process.Refresh();
+
+                    if (process.HasExited)
+                    {
+                        Console.WriteLine(
+                            "Основной процесс Wukong завершён.");
+
+                        break;
+                    }
+
+                    await Task.Delay(
+                        TimeSpan.FromMilliseconds(250),
                         cancellationToken);
-
-                    return;
                 }
+            }
 
-                await Task.Delay(
-                    TimeSpan.FromMilliseconds(250),
+            process.Refresh();
+
+            // Если штатное закрытие не сработало,
+            // завершаем процесс принудительно.
+            if (!process.HasExited)
+            {
+                Console.WriteLine(
+                    "Wukong не закрылся штатно. " +
+                    "Завершаем процесс принудительно...");
+
+                process.Kill(
+                    entireProcessTree: true);
+
+                await process.WaitForExitAsync(
                     cancellationToken);
             }
         }
 
-        // Если приложение не отреагировало на обычное закрытие,
-        // завершаем процесс принудительно.
-        process.Refresh();
-
-        if (!process.HasExited)
-        {
-            Console.WriteLine(
-                "Wukong не закрылся штатно. Завершаем процесс принудительно...");
-
-            process.Kill(
-                entireProcessTree: true);
-
-            await process.WaitForExitAsync(
-                cancellationToken);
-        }
-
+        // Даже если основной процесс уже исчез,
+        // launcher тоже должен быть завершён.
         await CloseLauncherProcessesAsync(
             cancellationToken);
 
         Console.WriteLine(
-            "Wukong закрыт.");
+            "Wukong успешно закрыт.");
     }
 
     private static async Task CloseLauncherProcessesAsync(
@@ -223,5 +216,89 @@ public sealed class BenchmarkProcessRunner
         }
     }
 
+
+    public async Task WaitUntilFullyStoppedAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        var stopwatch =
+            Stopwatch.StartNew();
+
+        // Требуем, чтобы оба процесса отсутствовали
+        // несколько проверок подряд.
+        //
+        // Это защищает от короткой ситуации, когда основной
+        // процесс уже исчез, а launcher/Steam ещё завершает
+        // закрытие приложения.
+        const int requiredStableChecks = 8;
+
+        var stableChecks = 0;
+
+        while (stopwatch.Elapsed < timeout)
+        {
+            cancellationToken
+                .ThrowIfCancellationRequested();
+
+            var mainRunning =
+                Process.GetProcessesByName(
+                    "b1-Win64-Shipping")
+                .Any();
+
+            var launcherRunning =
+                Process.GetProcessesByName(
+                    "b1_benchmark")
+                .Any();
+
+            if (!mainRunning &&
+                !launcherRunning)
+            {
+                stableChecks++;
+
+                if (stableChecks >= requiredStableChecks)
+                {
+                    Console.WriteLine(
+                        "Все процессы Wukong полностью завершены.");
+
+                    return;
+                }
+            }
+            else
+            {
+                stableChecks = 0;
+            }
+
+            await Task.Delay(
+                TimeSpan.FromMilliseconds(250),
+                cancellationToken);
+        }
+
+        var remainingProcesses =
+            Process.GetProcesses()
+                .Where(process =>
+                    process.ProcessName.Equals(
+                        "b1-Win64-Shipping",
+                        StringComparison.OrdinalIgnoreCase) ||
+                    process.ProcessName.Equals(
+                        "b1_benchmark",
+                        StringComparison.OrdinalIgnoreCase))
+                .Select(process =>
+                {
+                    using (process)
+                    {
+                        return
+                            $"{process.ProcessName} (PID {process.Id})";
+                    }
+                })
+                .ToArray();
+
+        var details =
+            remainingProcesses.Length == 0
+                ? "процессы не обнаружены"
+                : string.Join(
+                    ", ",
+                    remainingProcesses);
+
+        throw new TimeoutException(
+            $"Wukong не завершился полностью за " +
+            $"{timeout.TotalSeconds:F0} с. Остались: {details}.");
+    }
 
 }
