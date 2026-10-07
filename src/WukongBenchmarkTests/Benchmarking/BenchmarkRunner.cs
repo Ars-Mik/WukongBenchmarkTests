@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using WukongBenchmarkTests.Models;
 
 namespace WukongBenchmarkTests.Benchmarking;
@@ -7,28 +8,38 @@ public sealed class BenchmarkRunner
     private const string TargetProcessName =
         "b1-Win64-Shipping.exe";
 
-    private readonly BenchmarkProcessRunner _processRunner;
     private readonly PresentMonRunner _presentMonRunner;
+    private readonly BenchmarkProcessRunner _processRunner;
+    private readonly BenchmarkUiController _uiController;
+    private readonly BenchmarkCompletionDetector _completionDetector;
     private readonly PresentMonCsvAnalyzer _csvAnalyzer;
 
     public BenchmarkRunner()
     {
+        _presentMonRunner =
+            new PresentMonRunner();
+
         _processRunner =
             new BenchmarkProcessRunner();
 
-        _presentMonRunner =
-            new PresentMonRunner();
+        _uiController =
+            new BenchmarkUiController();
+
+        _completionDetector =
+            new BenchmarkCompletionDetector();
 
         _csvAnalyzer =
             new PresentMonCsvAnalyzer();
     }
 
-    public async Task<BenchmarkResult> RunInteractiveAsync(
+    public async Task<BenchmarkResult> RunAsync(
         string csvPath,
         CancellationToken cancellationToken = default)
     {
+        Process? benchmarkProcess = null;
+
         Console.WriteLine(
-            "Запускаем сбор кадров PresentMon...");
+            "Запускаем PresentMon...");
 
         _presentMonRunner.StartCapture(
             csvPath,
@@ -37,7 +48,7 @@ public sealed class BenchmarkRunner
         try
         {
             // Даём PresentMon время создать ETW-сессию
-            // до запуска самого benchmark-приложения.
+            // до запуска Wukong.
             await Task.Delay(
                 TimeSpan.FromSeconds(1),
                 cancellationToken);
@@ -45,7 +56,7 @@ public sealed class BenchmarkRunner
             Console.WriteLine(
                 "Запускаем Black Myth: Wukong Benchmark...");
 
-            using var benchmarkProcess =
+            benchmarkProcess =
                 await _processRunner.LaunchAsync(
                     TimeSpan.FromSeconds(60),
                     cancellationToken);
@@ -53,54 +64,64 @@ public sealed class BenchmarkRunner
             Console.WriteLine(
                 $"Основной процесс найден. PID: {benchmarkProcess.Id}");
 
-            Console.WriteLine();
             Console.WriteLine(
-                "Временно требуется ручной шаг:");
+                "Запускаем benchmark через интерфейс...");
 
-            Console.WriteLine(
-                "1. В приложении запусти «Тест быстродействия».");
-
-            Console.WriteLine(
-                "2. Дождись экрана результатов.");
-
-            Console.WriteLine(
-                "3. После этого закрой приложение обычным способом.");
+            await _uiController.StartBenchmarkAsync(
+                benchmarkProcess,
+                TimeSpan.FromSeconds(30),
+                cancellationToken);
 
             Console.WriteLine();
             Console.WriteLine(
-                "Программа автоматически продолжит работу после закрытия Wukong.");
+                "Benchmark запущен автоматически.");
 
-            await benchmarkProcess.WaitForExitAsync(
+            await _completionDetector.WaitForCompletionAsync(
+                csvPath,
+                TimeSpan.FromMinutes(5),
                 cancellationToken);
 
             Console.WriteLine(
-                "Основной процесс Wukong завершён.");
+                "Завершение benchmark обнаружено.");
         }
         finally
         {
             Console.WriteLine(
-                "Останавливаем сбор PresentMon...");
+                "Останавливаем PresentMon...");
 
             await _presentMonRunner.StopCaptureAsync();
         }
 
-        // Даём системе небольшой момент на завершение
-        // записи и закрытие CSV-файла.
-        await Task.Delay(
-            TimeSpan.FromMilliseconds(500),
-            cancellationToken);
-
-        if (!File.Exists(csvPath))
+        try
         {
-            throw new FileNotFoundException(
-                "PresentMon не создал CSV-файл.",
-                csvPath);
+            // PresentMon уже остановлен, поэтому теперь
+            // CSV гарантированно содержит завершённый прогон.
+            await Task.Delay(
+                TimeSpan.FromMilliseconds(500),
+                cancellationToken);
+
+            Console.WriteLine(
+                "Анализируем результаты...");
+
+            var result =
+                _csvAnalyzer.Analyze(
+                    csvPath);
+
+            return result;
         }
+        finally
+        {
+            // Wukong должен быть закрыт даже в том случае,
+            // если анализ CSV завершился ошибкой.
+            if (benchmarkProcess is not null)
+            {
+                await _processRunner.CloseAsync(
+                    benchmarkProcess,
+                    TimeSpan.FromSeconds(5),
+                    cancellationToken);
 
-        Console.WriteLine(
-            "Анализируем полученные данные...");
-
-        return _csvAnalyzer.Analyze(
-            csvPath);
+                benchmarkProcess.Dispose();
+            }
+        }
     }
 }
