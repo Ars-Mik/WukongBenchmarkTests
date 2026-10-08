@@ -5,8 +5,7 @@ namespace WukongBenchmarkTests.Benchmarking;
 
 public sealed class BenchmarkRunner
 {
-    private const string TargetProcessName =
-        "b1-Win64-Shipping.exe";
+    private const string TargetProcessName = "b1-Win64-Shipping.exe";
 
     private readonly PresentMonRunner _presentMonRunner;
     private readonly BenchmarkProcessRunner _processRunner;
@@ -16,20 +15,11 @@ public sealed class BenchmarkRunner
 
     public BenchmarkRunner()
     {
-        _presentMonRunner =
-            new PresentMonRunner();
-
-        _processRunner =
-            new BenchmarkProcessRunner();
-
-        _uiController =
-            new BenchmarkUiController();
-
-        _completionDetector =
-            new BenchmarkCompletionDetector();
-
-        _csvAnalyzer =
-            new PresentMonCsvAnalyzer();
+        _presentMonRunner = new PresentMonRunner();
+        _processRunner = new BenchmarkProcessRunner();
+        _uiController = new BenchmarkUiController();
+        _completionDetector = new BenchmarkCompletionDetector();
+        _csvAnalyzer = new PresentMonCsvAnalyzer();
     }
 
     public async Task<BenchmarkResult> RunAsync(
@@ -37,12 +27,11 @@ public sealed class BenchmarkRunner
         CancellationToken cancellationToken = default)
     {
         Process? benchmarkProcess = null;
-        bool presentMonStarted = false;
+        var presentMonStarted = false;
 
         try
         {
-            Console.WriteLine(
-                "Запускаем PresentMon...");
+            Console.WriteLine("Запускаем PresentMon...");
 
             _presentMonRunner.StartCapture(
                 csvPath,
@@ -54,19 +43,16 @@ public sealed class BenchmarkRunner
                 TimeSpan.FromSeconds(1),
                 cancellationToken);
 
-            Console.WriteLine(
-                "Запускаем Black Myth: Wukong Benchmark...");
+            Console.WriteLine("Запускаем Black Myth: Wukong Benchmark...");
 
-            benchmarkProcess =
-                await _processRunner.LaunchAsync(
-                    TimeSpan.FromSeconds(60),
-                    cancellationToken);
+            benchmarkProcess = await _processRunner.LaunchAsync(
+                TimeSpan.FromSeconds(60),
+                cancellationToken);
 
             Console.WriteLine(
                 $"Основной процесс найден. PID: {benchmarkProcess.Id}");
 
-            Console.WriteLine(
-                "Запускаем benchmark через интерфейс...");
+            Console.WriteLine("Запускаем benchmark через интерфейс...");
 
             await _uiController.StartBenchmarkAsync(
                 benchmarkProcess,
@@ -74,19 +60,15 @@ public sealed class BenchmarkRunner
                 cancellationToken);
 
             Console.WriteLine();
-            Console.WriteLine(
-                "Benchmark запущен автоматически.");
+            Console.WriteLine("Benchmark запущен автоматически.");
 
             await _completionDetector.WaitForCompletionAsync(
                 csvPath,
                 TimeSpan.FromMinutes(5),
                 cancellationToken);
 
-            Console.WriteLine(
-                "Завершение benchmark обнаружено.");
-
-            Console.WriteLine(
-                "Останавливаем PresentMon...");
+            Console.WriteLine("Завершение benchmark обнаружено.");
+            Console.WriteLine("Останавливаем PresentMon...");
 
             await _presentMonRunner.StopCaptureAsync();
 
@@ -96,31 +78,26 @@ public sealed class BenchmarkRunner
                 TimeSpan.FromMilliseconds(500),
                 cancellationToken);
 
-            Console.WriteLine(
-                "Анализируем результаты...");
+            Console.WriteLine("Анализируем результаты...");
 
-            return _csvAnalyzer.Analyze(
-                csvPath);
+            return _csvAnalyzer.Analyze(csvPath);
         }
         finally
         {
-            // Cleanup выполняем даже при timeout,
+            // Cleanup даже при timeout,
             // ошибке UI или отмене операции.
-
             if (presentMonStarted)
             {
                 try
                 {
-                    Console.WriteLine(
-                        "Останавливаем PresentMon...");
+                    Console.WriteLine("Останавливаем PresentMon...");
 
                     await _presentMonRunner.StopCaptureAsync();
                 }
                 catch (Exception exception)
                 {
                     Console.Error.WriteLine(
-                        $"Не удалось корректно остановить PresentMon: " +
-                        $"{exception.Message}");
+                        $"Не удалось корректно остановить PresentMon: {exception.Message}");
                 }
             }
 
@@ -138,8 +115,7 @@ public sealed class BenchmarkRunner
                 catch (Exception exception)
                 {
                     Console.Error.WriteLine(
-                        $"Не удалось корректно закрыть Wukong: " +
-                        $"{exception.Message}");
+                        $"Не удалось корректно закрыть Wukong: {exception.Message}");
                 }
                 finally
                 {

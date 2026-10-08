@@ -6,8 +6,7 @@ namespace WukongBenchmarkTests.Benchmarking;
 
 public sealed class PresentMonCsvAnalyzer
 {
-    private const string TargetProcessName =
-        "b1-Win64-Shipping.exe";
+    private const string TargetProcessName = "b1-Win64-Shipping.exe";
 
     public BenchmarkResult Analyze(string csvPath)
     {
@@ -41,8 +40,7 @@ public sealed class PresentMonCsvAnalyzer
             .OrderBy(row => row.CpuStartTime)
             .ToList();
 
-        var benchmarkRows =
-            ExtractBenchmarkSegment(mainRows);
+        var benchmarkRows = ExtractBenchmarkSegment(mainRows);
 
         var frameTimes = benchmarkRows
             .Select(row => row.FrameTime)
@@ -55,18 +53,13 @@ public sealed class PresentMonCsvAnalyzer
                 "Benchmark segment does not contain valid frame times.");
         }
 
-        var durationSeconds =
-            frameTimes.Sum() / 1000.0;
-
-        var averageFps =
-            frameTimes.Count / durationSeconds;
+        var durationSeconds = frameTimes.Sum() / 1000.0;
+        var averageFps = frameTimes.Count / durationSeconds;
 
         // Для минимального, максимального FPS и 5-го перцентиля
         // используем устойчивые секундные интервалы, а не отдельные кадры.
         // Это не позволяет одиночному микрофризу исказить весь результат.
-        var oneSecondFpsSamples =
-            CalculateOneSecondFpsSamples(
-                benchmarkRows);
+        var oneSecondFpsSamples = CalculateOneSecondFpsSamples(benchmarkRows);
 
         if (oneSecondFpsSamples.Count == 0)
         {
@@ -74,16 +67,12 @@ public sealed class PresentMonCsvAnalyzer
                 "Не удалось получить секундные значения FPS.");
         }
 
-        var minimumFps =
-            oneSecondFpsSamples.Min();
+        var minimumFps = oneSecondFpsSamples.Min();
+        var maximumFps = oneSecondFpsSamples.Max();
 
-        var maximumFps =
-            oneSecondFpsSamples.Max();
-
-        var low5PercentFps =
-            CalculateLowerPercentile(
-                oneSecondFpsSamples,
-                0.05);
+        var low5PercentFps = CalculateLowerPercentile(
+            oneSecondFpsSamples,
+            0.05);
 
         return new BenchmarkResult
         {
@@ -107,27 +96,21 @@ public sealed class PresentMonCsvAnalyzer
         const double startTransitionThresholdMs = 200.0;
         const double endTransitionThresholdMs = 500.0;
 
-        var firstTimestamp =
-            rows[0].CpuStartTime;
-
+        var firstTimestamp = rows[0].CpuStartTime;
         var benchmarkStartIndex = -1;
 
         // Сначала ищем переход из меню непосредственно в benchmark.
         for (var i = 0; i < rows.Count; i++)
         {
             var elapsedSeconds =
-                (rows[i].CpuStartTime - firstTimestamp)
-                / 1000.0;
+                (rows[i].CpuStartTime - firstTimestamp) / 1000.0;
 
-            // Первые секунды относятся к запуску приложения
-            // и загрузке Unreal Engine.
             if (elapsedSeconds < 10)
             {
                 continue;
             }
 
-            if (rows[i].FrameTime >=
-                startTransitionThresholdMs)
+            if (rows[i].FrameTime >= startTransitionThresholdMs)
             {
                 benchmarkStartIndex = i;
                 break;
@@ -146,22 +129,18 @@ public sealed class PresentMonCsvAnalyzer
         // на экран результатов. Чтобы случайный микрофриз
         // внутри benchmark не считался концом, требуем,
         // чтобы прошло минимум 60 секунд.
-        for (var i = benchmarkStartIndex + 1;
-            i < rows.Count;
-            i++)
+        for (var i = benchmarkStartIndex + 1; i < rows.Count; i++)
         {
             var benchmarkDurationSeconds =
                 (rows[i].CpuStartTime -
-                rows[benchmarkStartIndex].CpuStartTime)
-                / 1000.0;
+                 rows[benchmarkStartIndex].CpuStartTime) / 1000.0;
 
             if (benchmarkDurationSeconds < 60)
             {
                 continue;
             }
 
-            if (rows[i].FrameTime >=
-                endTransitionThresholdMs)
+            if (rows[i].FrameTime >= endTransitionThresholdMs)
             {
                 benchmarkEndIndex = i;
                 break;
@@ -175,81 +154,56 @@ public sealed class PresentMonCsvAnalyzer
         }
 
         var startSeconds =
-            (rows[benchmarkStartIndex].CpuStartTime -
-            firstTimestamp)
-            / 1000.0;
+            (rows[benchmarkStartIndex].CpuStartTime - firstTimestamp) / 1000.0;
 
         var endSeconds =
-            (rows[benchmarkEndIndex].CpuStartTime -
-            firstTimestamp)
-            / 1000.0;
+            (rows[benchmarkEndIndex].CpuStartTime - firstTimestamp) / 1000.0;
 
         Console.WriteLine(
-            $"Начало benchmark обнаружено на " +
-            $"{startSeconds:F3} с.");
+            $"Начало benchmark обнаружено на {startSeconds:F3} с.");
 
         Console.WriteLine(
-            $"Конец benchmark обнаружен на " +
-            $"{endSeconds:F3} с.");
+            $"Конец benchmark обнаружен на {endSeconds:F3} с.");
 
         return rows
             .Skip(benchmarkStartIndex + 1)
-            .Take(
-                benchmarkEndIndex -
-                benchmarkStartIndex -
-                1)
+            .Take(benchmarkEndIndex - benchmarkStartIndex - 1)
             .ToList();
     }
 
     private static List<double> CalculateOneSecondFpsSamples(
-    IReadOnlyList<PresentMonRow> rows)
+        IReadOnlyList<PresentMonRow> rows)
     {
         if (rows.Count < 2)
         {
             return [];
         }
 
-        var firstTimestamp =
-            rows[0].CpuStartTime;
+        var firstTimestamp = rows[0].CpuStartTime;
+        var lastTimestamp = rows[^1].CpuStartTime;
 
-        var lastTimestamp =
-            rows[^1].CpuStartTime;
+        var durationSeconds = (lastTimestamp - firstTimestamp) / 1000.0;
+        var fullSecondCount = (int)Math.Floor(durationSeconds);
 
-        var durationSeconds =
-            (lastTimestamp - firstTimestamp)
-            / 1000.0;
-
-        var fullSecondCount =
-            (int)Math.Floor(durationSeconds);
-
-        var samples =
-            new List<double>();
+        var samples = new List<double>();
 
         // Первый секундный интервал пропускаем:
         // после перехода в benchmark там ещё может присутствовать
         // инициализация сцены и остаточная загрузка.
         //
         // Последний неполный интервал тоже не используем.
-        for (var second = 1;
-            second < fullSecondCount;
-            second++)
+        for (var second = 1; second < fullSecondCount; second++)
         {
-            var windowStart =
-                firstTimestamp +
-                second * 1000.0;
-
-            var windowEnd =
-                windowStart + 1000.0;
+            var windowStart = firstTimestamp + second * 1000.0;
+            var windowEnd = windowStart + 1000.0;
 
             var frameCount = 0;
 
             for (var i = 0; i < rows.Count; i++)
             {
-                var timestamp =
-                    rows[i].CpuStartTime;
+                var timestamp = rows[i].CpuStartTime;
 
-                if (timestamp >= windowStart &&
-                    timestamp < windowEnd)
+                if (timestamp >= windowStart && timestamp < windowEnd)
                 {
                     frameCount++;
                 }
@@ -266,7 +220,6 @@ public sealed class PresentMonCsvAnalyzer
         return samples;
     }
 
-
     private static double CalculateLowerPercentile(
         IReadOnlyList<double> values,
         double percentile)
@@ -278,77 +231,50 @@ public sealed class PresentMonCsvAnalyzer
                 nameof(values));
         }
 
-        var sorted =
-            values
-                .OrderBy(value => value)
-                .ToArray();
+        var sorted = values
+            .OrderBy(value => value)
+            .ToArray();
 
-        var position =
-            (sorted.Length - 1) *
-            percentile;
-
-        var index =
-            (int)Math.Floor(position);
+        var position = (sorted.Length - 1) * percentile;
+        var index = (int)Math.Floor(position);
 
         return sorted[index];
     }
 
-
-    private static List<PresentMonRow> ReadRows(
-        string csvPath)
+    private static List<PresentMonRow> ReadRows(string csvPath)
     {
-        var rows =
-            new List<PresentMonRow>();
+        var rows = new List<PresentMonRow>();
 
-        using var parser =
-            new TextFieldParser(csvPath);
+        using var parser = new TextFieldParser(csvPath);
 
-        parser.TextFieldType =
-            FieldType.Delimited;
-
+        parser.TextFieldType = FieldType.Delimited;
         parser.SetDelimiters(",");
+        parser.HasFieldsEnclosedInQuotes = true;
 
-        parser.HasFieldsEnclosedInQuotes =
-            true;
-
-        var headers =
-            parser.ReadFields()
+        var headers = parser.ReadFields()
             ?? throw new InvalidDataException(
                 "PresentMon CSV does not contain a header.");
 
-        var applicationIndex =
-            FindColumn(headers, "Application");
-
-        var swapChainIndex =
-            FindColumn(headers, "SwapChainAddress");
-
-        var cpuStartTimeIndex =
-            FindColumn(headers, "CPUStartTime");
-
-        var frameTimeIndex =
-            FindColumn(headers, "FrameTime");
+        var applicationIndex = FindColumn(headers, "Application");
+        var swapChainIndex = FindColumn(headers, "SwapChainAddress");
+        var cpuStartTimeIndex = FindColumn(headers, "CPUStartTime");
+        var frameTimeIndex = FindColumn(headers, "FrameTime");
 
         while (!parser.EndOfData)
         {
-            var fields =
-                parser.ReadFields();
+            var fields = parser.ReadFields();
 
-            if (fields is null ||
-                fields.Length != headers.Length)
+            if (fields is null || fields.Length != headers.Length)
             {
                 continue;
             }
 
-            if (!TryParseDouble(
-                    fields[cpuStartTimeIndex],
-                    out var cpuStartTime))
+            if (!TryParseDouble(fields[cpuStartTimeIndex], out var cpuStartTime))
             {
                 continue;
             }
 
-            if (!TryParseDouble(
-                    fields[frameTimeIndex],
-                    out var frameTime))
+            if (!TryParseDouble(fields[frameTimeIndex], out var frameTime))
             {
                 continue;
             }

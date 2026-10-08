@@ -494,5 +494,3 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
-
-/local-artifacts/

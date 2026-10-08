@@ -9,40 +9,23 @@ public sealed class BenchmarkReportWriter
         new()
         {
             WriteIndented = true,
-            PropertyNamingPolicy =
-                JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
-    public async Task<string> WriteAsync(
-        BenchmarkReport report,
-        string outputDirectory,
+    public async Task<string> WriteAsync(BenchmarkReport report, string outputDirectory,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(
-            report);
+        ArgumentNullException.ThrowIfNull(report);
 
-        outputDirectory =
-            Path.GetFullPath(
-                outputDirectory);
+        outputDirectory = Path.GetFullPath(outputDirectory);
 
-        Directory.CreateDirectory(
-            outputDirectory);
+        Directory.CreateDirectory(outputDirectory);
 
-        var fileName =
-            $"wukong-benchmark-" +
-            $"{report.TimestampUtc:yyyyMMdd-HHmmss-fff}.json";
+        var fileName = $"wukong-benchmark-" + $"{report.TimestampUtc:yyyyMMdd-HHmmss-fff}.json";
 
-        var outputPath =
-            Path.Combine(
-                outputDirectory,
-                fileName);
+        var outputPath = Path.Combine(outputDirectory, fileName);
 
-        await using var stream =
-            new FileStream(
-                outputPath,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.Read);
+        await using var stream = new FileStream(outputPath, FileMode.CreateNew, FileAccess.Write, FileShare.Read);
 
         await JsonSerializer.SerializeAsync(
             stream,

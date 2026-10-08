@@ -5,11 +5,8 @@ namespace WukongBenchmarkTests.Benchmarking;
 
 public sealed class PresentMonRunner
 {
-    private const string ExecutableName =
-        "presentmon.exe";
-
-    private const string SessionName =
-        "WukongBenchmarkTests";
+    private const string ExecutableName = "presentmon.exe";
+    private const string SessionName = "WukongBenchmarkTests";
 
     private Process? _captureProcess;
     private StreamWriter? _csvWriter;
@@ -21,18 +18,14 @@ public sealed class PresentMonRunner
         string outputPath,
         string? processName = null)
     {
-        if (_captureProcess is not null &&
-            !_captureProcess.HasExited)
+        if (_captureProcess is not null && !_captureProcess.HasExited)
         {
             throw new InvalidOperationException(
                 "PresentMon уже выполняет захват.");
         }
 
-        var fullOutputPath =
-            Path.GetFullPath(outputPath);
-
-        var directory =
-            Path.GetDirectoryName(fullOutputPath);
+        var fullOutputPath = Path.GetFullPath(outputPath);
+        var directory = Path.GetDirectoryName(fullOutputPath);
 
         if (!string.IsNullOrWhiteSpace(directory))
         {
@@ -45,82 +38,62 @@ public sealed class PresentMonRunner
 
         // Старый CSV мог ещё некоторое время удерживаться
         // предыдущим экземпляром PresentMon.
-        DeleteFileWithRetry(
-            fullOutputPath);
+        DeleteFileWithRetry(fullOutputPath);
 
-        var fileStream =
-            new FileStream(
-                fullOutputPath,
-                FileMode.Create,
-                FileAccess.Write,
-                FileShare.ReadWrite);
+        var fileStream = new FileStream(
+            fullOutputPath,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.ReadWrite);
 
-        _csvWriter =
-            new StreamWriter(
-                fileStream,
-                new UTF8Encoding(
-                    encoderShouldEmitUTF8Identifier: false))
-            {
-                // Каждая полученная строка сразу становится
-                // доступна BenchmarkCompletionDetector.
-                AutoFlush = true
-            };
+        _csvWriter = new StreamWriter(
+            fileStream,
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
+        {
+            // Каждая полученная строка сразу становится
+            // доступна BenchmarkCompletionDetector.
+            AutoFlush = true
+        };
 
-        var startInfo =
-            new ProcessStartInfo
-            {
-                FileName = ExecutableName,
-                UseShellExecute = false,
-                CreateNoWindow = true,
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = ExecutableName,
+            UseShellExecute = false,
+            CreateNoWindow = true,
 
-                // CSV получаем не через --output_file,
-                // а как живой поток из stdout.
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
+            // CSV получаем не через --output_file,
+            // а как живой поток из stdout.
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
 
-        startInfo.ArgumentList.Add(
-            "--session_name");
-
-        startInfo.ArgumentList.Add(
-            SessionName);
+        startInfo.ArgumentList.Add("--session_name");
+        startInfo.ArgumentList.Add(SessionName);
 
         if (!string.IsNullOrWhiteSpace(processName))
         {
-            startInfo.ArgumentList.Add(
-                "--process_name");
-
-            startInfo.ArgumentList.Add(
-                processName);
+            startInfo.ArgumentList.Add("--process_name");
+            startInfo.ArgumentList.Add(processName);
         }
 
-        startInfo.ArgumentList.Add(
-            "--exclude_dropped");
+        startInfo.ArgumentList.Add("--exclude_dropped");
+        startInfo.ArgumentList.Add("--v2_metrics");
+        startInfo.ArgumentList.Add("--output_stdout");
 
-        startInfo.ArgumentList.Add(
-            "--v2_metrics");
-
-        startInfo.ArgumentList.Add(
-            "--output_stdout");
-
-        _captureProcess =
-            Process.Start(startInfo)
+        _captureProcess = Process.Start(startInfo)
             ?? throw new InvalidOperationException(
                 "Не удалось запустить PresentMon.");
 
         // Читаем stdout в фоне, чтобы StartCapture()
         // сразу вернул управление основной программе.
-        _stdoutPumpTask =
-            PumpStdoutAsync(
-                _captureProcess,
-                _csvWriter);
+        _stdoutPumpTask = PumpStdoutAsync(
+            _captureProcess,
+            _csvWriter);
 
         // stderr обязательно тоже читаем:
         // иначе заполненный pipe теоретически может
         // заблокировать дочерний процесс.
-        _stderrPumpTask =
-            DrainStderrAsync(
-                _captureProcess);
+        _stderrPumpTask = DrainStderrAsync(_captureProcess);
     }
 
     public async Task StopCaptureAsync()
@@ -131,8 +104,7 @@ public sealed class PresentMonRunner
         {
             try
             {
-                await _captureProcess
-                    .WaitForExitAsync();
+                await _captureProcess.WaitForExitAsync();
             }
             catch (InvalidOperationException)
             {
@@ -170,17 +142,14 @@ public sealed class PresentMonRunner
     {
         while (true)
         {
-            var line =
-                await process.StandardOutput
-                    .ReadLineAsync();
+            var line = await process.StandardOutput.ReadLineAsync();
 
             if (line is null)
             {
                 break;
             }
 
-            await writer.WriteLineAsync(
-                line);
+            await writer.WriteLineAsync(line);
 
             // AutoFlush уже включён, но здесь намеренно
             // оставляем явный flush: live-детектор должен
@@ -189,14 +158,11 @@ public sealed class PresentMonRunner
         }
     }
 
-    private static async Task DrainStderrAsync(
-        Process process)
+    private static async Task DrainStderrAsync(Process process)
     {
         while (true)
         {
-            var line =
-                await process.StandardError
-                    .ReadLineAsync();
+            var line = await process.StandardError.ReadLineAsync();
 
             if (line is null)
             {
@@ -205,58 +171,47 @@ public sealed class PresentMonRunner
 
             // Ошибки PresentMon пока выводим в нашу консоль,
             // чтобы они не терялись при диагностике.
-            Console.Error.WriteLine(
-                $"PresentMon: {line}");
+            Console.Error.WriteLine($"PresentMon: {line}");
         }
     }
 
     private static void StopSession()
     {
-        var startInfo =
-            new ProcessStartInfo
-            {
-                FileName = ExecutableName,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = ExecutableName,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
 
-        startInfo.ArgumentList.Add(
-            "--session_name");
+        startInfo.ArgumentList.Add("--session_name");
+        startInfo.ArgumentList.Add(SessionName);
+        startInfo.ArgumentList.Add("--terminate_existing_session");
 
-        startInfo.ArgumentList.Add(
-            SessionName);
-
-        startInfo.ArgumentList.Add(
-            "--terminate_existing_session");
-
-        using var process =
-            Process.Start(startInfo);
+        using var process = Process.Start(startInfo);
 
         if (process is null)
         {
             return;
         }
 
-        var standardOutput =
-            process.StandardOutput.ReadToEnd();
-
-        var standardError =
-            process.StandardError.ReadToEnd();
+        var standardOutput = process.StandardOutput.ReadToEnd();
+        var standardError = process.StandardError.ReadToEnd();
 
         process.WaitForExit();
 
-        if (process.ExitCode != 0 &&
-            !standardError.Contains(
+        if (process.ExitCode != 0
+            && !standardError.Contains(
                 "no existing sessions found",
                 StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                $"Не удалось остановить PresentMon." +
-                $"{Environment.NewLine}" +
+                "Не удалось остановить PresentMon." +
+                Environment.NewLine +
                 $"Код выхода: {process.ExitCode}" +
-                $"{Environment.NewLine}" +
+                Environment.NewLine +
                 standardOutput +
                 Environment.NewLine +
                 standardError);
@@ -265,27 +220,20 @@ public sealed class PresentMonRunner
 
     private static void StopExistingCaptureIfAny()
     {
-        var startInfo =
-            new ProcessStartInfo
-            {
-                FileName = ExecutableName,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = ExecutableName,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
 
-        startInfo.ArgumentList.Add(
-            "--session_name");
+        startInfo.ArgumentList.Add("--session_name");
+        startInfo.ArgumentList.Add(SessionName);
+        startInfo.ArgumentList.Add("--terminate_existing_session");
 
-        startInfo.ArgumentList.Add(
-            SessionName);
-
-        startInfo.ArgumentList.Add(
-            "--terminate_existing_session");
-
-        using var process =
-            Process.Start(startInfo);
+        using var process = Process.Start(startInfo);
 
         if (process is null)
         {
@@ -302,8 +250,7 @@ public sealed class PresentMonRunner
         // чаще всего он означает, что старой сессии не было.
     }
 
-    private static void DeleteFileWithRetry(
-        string path)
+    private static void DeleteFileWithRetry(string path)
     {
         if (!File.Exists(path))
         {
@@ -312,17 +259,14 @@ public sealed class PresentMonRunner
 
         const int attempts = 15;
 
-        for (var attempt = 1;
-             attempt <= attempts;
-             attempt++)
+        for (var attempt = 1; attempt <= attempts; attempt++)
         {
             try
             {
                 File.Delete(path);
                 return;
             }
-            catch (IOException)
-                when (attempt < attempts)
+            catch (IOException) when (attempt < attempts)
             {
                 Thread.Sleep(200);
             }

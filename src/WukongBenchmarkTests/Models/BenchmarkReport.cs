@@ -8,9 +8,10 @@ public sealed class BenchmarkReport
 
     public required BenchmarkProfile CpuProfile { get; init; }
 
-    public required BenchmarkResult CpuResult { get; init; }
+    public required BenchmarkResultReport CpuResult { get; init; }
+
+    public required BenchmarkResultReport GpuResult { get; init; }
 
     public required BenchmarkProfile GpuProfile { get; init; }
 
-    public required BenchmarkResult GpuResult { get; init; }
 }

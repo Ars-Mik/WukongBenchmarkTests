@@ -6,27 +6,21 @@ namespace WukongBenchmarkTests.Benchmarking;
 public sealed class BenchmarkUiController
 {
     // Координаты центра кнопки «Тест быстродействия»
-    // были измерены при разрешении 2560x1600:
-    // X = 217, Y = 482.
-    //
-    // Храним не абсолютные пиксели, а положение
-    // относительно клиентской области окна.
-    private const double BenchmarkButtonXRatio =
-        437.0 / 2560.0;
+    // при разрешении 2560x1600:
+    // X = 437.0, Y = 700.0.
 
-    private const double BenchmarkButtonYRatio =
-        700.0 / 1600.0;
+    private const double BenchmarkButtonXRatio = 437.0 / 2560.0;
+    private const double BenchmarkButtonYRatio = 700.0 / 1600.0;
 
     public async Task StartBenchmarkAsync(
         Process benchmarkProcess,
         TimeSpan windowTimeout,
         CancellationToken cancellationToken = default)
     {
-        var windowHandle =
-            await WaitForMainWindowAsync(
-                benchmarkProcess,
-                windowTimeout,
-                cancellationToken);
+        var windowHandle = await WaitForMainWindowAsync(
+            benchmarkProcess,
+            windowTimeout,
+            cancellationToken);
 
         if (!GetCursorPos(out var originalCursorPosition))
         {
@@ -38,15 +32,14 @@ public sealed class BenchmarkUiController
         {
             // Восстанавливаем окно на случай,
             // если оно оказалось свёрнутым.
-            ShowWindow(
-                windowHandle,
-                SW_RESTORE);
+            ShowWindow(windowHandle, SW_RESTORE);
 
             if (!SetForegroundWindow(windowHandle))
             {
                 throw new InvalidOperationException(
                     "Не удалось перевести окно Wukong на передний план.");
             }
+
             if (GetForegroundWindow() != windowHandle)
             {
                 throw new InvalidOperationException(
@@ -54,35 +47,27 @@ public sealed class BenchmarkUiController
                     "Отправлять ввод небезопасно.");
             }
 
-            Console.WriteLine(
-                "Ожидаем полной загрузки стартового экрана...");
+            Console.WriteLine("Ожидаем полной загрузки стартового экрана...");
 
             await WaitForInterfaceReadyAsync(
                 windowHandle,
                 TimeSpan.FromSeconds(21),
                 cancellationToken);
 
-            Console.WriteLine(
-                "Стартовый экран должен быть готов.");
-
-            Console.WriteLine(
-                "Открываем главное меню...");
+            Console.WriteLine("Стартовый экран должен быть готов.");
+            Console.WriteLine("Открываем главное меню...");
 
             SendEnter();
 
-            Console.WriteLine(
-                "Ждём загрузки главного меню...");
+            Console.WriteLine("Ждём загрузки главного меню...");
 
             await Task.Delay(
                 TimeSpan.FromSeconds(2),
                 cancellationToken);
 
-            var benchmarkButtonPosition =
-                GetBenchmarkButtonPosition(
-                    windowHandle);
+            var benchmarkButtonPosition = GetBenchmarkButtonPosition(windowHandle);
 
-            Console.WriteLine(
-                "Наводим курсор на кнопку «Тест быстродействия»...");
+            Console.WriteLine("Наводим курсор на кнопку «Тест быстродействия»...");
 
             if (!SetCursorPos(
                     benchmarkButtonPosition.X,
@@ -94,11 +79,10 @@ public sealed class BenchmarkUiController
 
             // Даём интерфейсу время обработать hover-состояние кнопки.
             await Task.Delay(
-                TimeSpan.FromMilliseconds(1500),
+                TimeSpan.FromMilliseconds(1700),
                 cancellationToken);
 
-            Console.WriteLine(
-                "Открываем окно подтверждения запуска...");
+            Console.WriteLine("Кликаем на кнопку и открываем окно подтверждения запуска...");
 
             SendEnter();
 
@@ -106,8 +90,7 @@ public sealed class BenchmarkUiController
                 TimeSpan.FromSeconds(2),
                 cancellationToken);
 
-            Console.WriteLine(
-                "Подтверждаем запуск benchmark...");
+            Console.WriteLine("(Enter) Подтверждаем запуск benchmark теста...");
 
             SendEnter();
 
@@ -115,8 +98,7 @@ public sealed class BenchmarkUiController
                 TimeSpan.FromSeconds(1),
                 cancellationToken);
 
-            Console.WriteLine(
-                "Команда запуска benchmark отправлена.");
+            Console.WriteLine("Команда запуска benchmark отправлена.");
         }
         finally
         {
@@ -133,27 +115,19 @@ public sealed class BenchmarkUiController
         TimeSpan minimumWait,
         CancellationToken cancellationToken)
     {
-        // Сам факт появления MainWindowHandle ещё не означает,
-        // что Unreal Engine закончил загрузку интерфейса.
-        //
-        // Поэтому сначала ждём минимальное время загрузки,
+        // ждём минимальное время загрузки,
         // а затем дополнительно убеждаемся, что окно существует
         // и имеет нормальную клиентскую область.
-
-        var stopwatch =
-            Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
 
         while (stopwatch.Elapsed < minimumWait)
         {
-            cancellationToken
-                .ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
 
-            var remaining =
-                minimumWait - stopwatch.Elapsed;
+            var remaining = minimumWait - stopwatch.Elapsed;
 
             Console.Write(
-                $"\rЗагрузка интерфейса: " +
-                $"{Math.Ceiling(remaining.TotalSeconds),2:F0} с ");
+                $"\rЗагрузка интерфейса: {Math.Ceiling(remaining.TotalSeconds),2:F0} с ");
 
             await Task.Delay(
                 TimeSpan.FromMilliseconds(500),
@@ -162,19 +136,14 @@ public sealed class BenchmarkUiController
 
         Console.WriteLine();
 
-        if (!GetClientRect(
-                windowHandle,
-                out var clientRect))
+        if (!GetClientRect(windowHandle, out var clientRect))
         {
             throw new InvalidOperationException(
                 "После ожидания не удалось получить размер окна Wukong.");
         }
 
-        var width =
-            clientRect.Right - clientRect.Left;
-
-        var height =
-            clientRect.Bottom - clientRect.Top;
+        var width = clientRect.Right - clientRect.Left;
+        var height = clientRect.Bottom - clientRect.Top;
 
         if (width <= 0 || height <= 0)
         {
@@ -188,13 +157,11 @@ public sealed class BenchmarkUiController
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
-        var stopwatch =
-            Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
 
         while (stopwatch.Elapsed < timeout)
         {
-            cancellationToken
-                .ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
 
             process.Refresh();
 
@@ -215,26 +182,19 @@ public sealed class BenchmarkUiController
         }
 
         throw new TimeoutException(
-            $"Главное окно Wukong не появилось за " +
-            $"{timeout.TotalSeconds:F0} секунд.");
+            $"Главное окно Wukong не появилось за {timeout.TotalSeconds:F0} секунд.");
     }
 
-    private static POINT GetBenchmarkButtonPosition(
-        IntPtr windowHandle)
+    private static POINT GetBenchmarkButtonPosition(IntPtr windowHandle)
     {
-        if (!GetClientRect(
-                windowHandle,
-                out var clientRect))
+        if (!GetClientRect(windowHandle, out var clientRect))
         {
             throw new InvalidOperationException(
                 "Не удалось получить размер клиентской области Wukong.");
         }
 
-        var width =
-            clientRect.Right - clientRect.Left;
-
-        var height =
-            clientRect.Bottom - clientRect.Top;
+        var width = clientRect.Right - clientRect.Left;
+        var height = clientRect.Bottom - clientRect.Top;
 
         if (width <= 0 || height <= 0)
         {
@@ -242,19 +202,13 @@ public sealed class BenchmarkUiController
                 "Окно Wukong имеет некорректный размер.");
         }
 
-        var point =
-            new POINT
-            {
-                X = (int)Math.Round(
-                    width * BenchmarkButtonXRatio),
+        var point = new POINT
+        {
+            X = (int)Math.Round(width * BenchmarkButtonXRatio),
+            Y = (int)Math.Round(height * BenchmarkButtonYRatio)
+        };
 
-                Y = (int)Math.Round(
-                    height * BenchmarkButtonYRatio)
-            };
-
-        if (!ClientToScreen(
-                windowHandle,
-                ref point))
+        if (!ClientToScreen(windowHandle, ref point))
         {
             throw new InvalidOperationException(
                 "Не удалось преобразовать координаты кнопки в экранные.");
@@ -265,53 +219,45 @@ public sealed class BenchmarkUiController
 
     private static void SendEnter()
     {
-        var scanCode =
-            (ushort)MapVirtualKey(
-                VK_RETURN,
-                MAPVK_VK_TO_VSC);
+        var scanCode = (ushort)MapVirtualKey(VK_RETURN, MAPVK_VK_TO_VSC);
 
-        var inputs =
-            new[]
+        var inputs = new[]
+        {
+            new INPUT
             {
-                new INPUT
+                Type = INPUT_KEYBOARD,
+                Data = new INPUTUNION
                 {
-                    Type = INPUT_KEYBOARD,
-                    Data = new INPUTUNION
+                    Keyboard = new KEYBDINPUT
                     {
-                        Keyboard = new KEYBDINPUT
-                        {
-                            ScanCode = scanCode,
-                            Flags = KEYEVENTF_SCANCODE
-                        }
-                    }
-                },
-
-                new INPUT
-                {
-                    Type = INPUT_KEYBOARD,
-                    Data = new INPUTUNION
-                    {
-                        Keyboard = new KEYBDINPUT
-                        {
-                            ScanCode = scanCode,
-                            Flags =
-                                KEYEVENTF_SCANCODE |
-                                KEYEVENTF_KEYUP
-                        }
+                        ScanCode = scanCode,
+                        Flags = KEYEVENTF_SCANCODE
                     }
                 }
-            };
+            },
 
-        var sent =
-            SendInput(
-                (uint)inputs.Length,
-                inputs,
-                Marshal.SizeOf<INPUT>());
+            new INPUT
+            {
+                Type = INPUT_KEYBOARD,
+                Data = new INPUTUNION
+                {
+                    Keyboard = new KEYBDINPUT
+                    {
+                        ScanCode = scanCode,
+                        Flags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP
+                    }
+                }
+            }
+        };
+
+        var sent = SendInput(
+            (uint)inputs.Length,
+            inputs,
+            Marshal.SizeOf<INPUT>());
 
         if (sent != inputs.Length)
         {
-            var error =
-                Marshal.GetLastWin32Error();
+            var error = Marshal.GetLastWin32Error();
 
             throw new InvalidOperationException(
                 $"Windows не удалось отправить Enter. " +
@@ -321,17 +267,11 @@ public sealed class BenchmarkUiController
     }
 
     private const int SW_RESTORE = 9;
-
     private const uint INPUT_KEYBOARD = 1;
-
     private const ushort VK_RETURN = 0x0D;
-
     private const uint KEYEVENTF_KEYUP = 0x0002;
-
     private const uint KEYEVENTF_SCANCODE = 0x0008;
-
     private const uint MAPVK_VK_TO_VSC = 0;
-
 
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT
@@ -348,7 +288,6 @@ public sealed class BenchmarkUiController
         public int Right;
         public int Bottom;
     }
-
 
     [StructLayout(LayoutKind.Sequential)]
     private struct INPUT
@@ -398,26 +337,18 @@ public sealed class BenchmarkUiController
         public ushort ParameterLow;
         public ushort ParameterHigh;
     }
-    
 
     [DllImport("user32.dll")]
-    private static extern bool GetCursorPos(
-        out POINT point);
+    private static extern bool GetCursorPos(out POINT point);
 
     [DllImport("user32.dll")]
-    private static extern bool SetCursorPos(
-        int x,
-        int y);
+    private static extern bool SetCursorPos(int x, int y);
 
     [DllImport("user32.dll")]
-    private static extern bool GetClientRect(
-        IntPtr windowHandle,
-        out RECT rect);
+    private static extern bool GetClientRect(IntPtr windowHandle, out RECT rect);
 
     [DllImport("user32.dll")]
-    private static extern bool ClientToScreen(
-        IntPtr windowHandle,
-        ref POINT point);
+    private static extern bool ClientToScreen(IntPtr windowHandle, ref POINT point);
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr windowHandle);
@@ -426,9 +357,7 @@ public sealed class BenchmarkUiController
     private static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll")]
-    private static extern bool ShowWindow(
-        IntPtr windowHandle,
-        int command);
+    private static extern bool ShowWindow(IntPtr windowHandle, int command);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(
@@ -437,8 +366,5 @@ public sealed class BenchmarkUiController
         int inputSize);
 
     [DllImport("user32.dll")]
-    private static extern uint MapVirtualKey(
-        uint code,
-        uint mapType);
-
+    private static extern uint MapVirtualKey(uint code, uint mapType);
 }

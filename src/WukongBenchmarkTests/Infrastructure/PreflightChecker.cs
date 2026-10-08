@@ -13,52 +13,31 @@ public sealed class PreflightChecker
         "presentmon"
     ];
 
+    private static int _lastProgressLength;
+
     public async Task ValidateAsync(
         string gameSettingsPath,
         string resultsDirectory,
         string localArtifactsDirectory,
         CancellationToken cancellationToken = default)
     {
-        Console.WriteLine(
-            "=== ПРЕДВАРИТЕЛЬНАЯ ПРОВЕРКА ===");
-
-        Console.WriteLine();
-
         CheckWindows();
 
-        gameSettingsPath =
-            Path.GetFullPath(
-                gameSettingsPath);
+        gameSettingsPath = Path.GetFullPath(gameSettingsPath);
 
-        CheckGameSettings(
-            gameSettingsPath);
-
-        CheckBenchmarkExecutable(
-            gameSettingsPath);
-
+        CheckGameSettings(gameSettingsPath);
+        CheckBenchmarkExecutable(gameSettingsPath);
         CheckSteamProtocol();
-
         CheckProcesses();
-
         CheckPresentMonPermissions();
 
-        await CheckPresentMonAsync(
-            cancellationToken);
+        await CheckPresentMonAsync(cancellationToken);
 
-        CheckDirectoryWritable(
-            resultsDirectory,
-            "Папка результатов");
+        CheckDirectoryWritable(resultsDirectory, "Папка результатов");
 
-        CheckDirectoryWritable(
-            localArtifactsDirectory,
-            "Папка временных файлов");
+        CheckDirectoryWritable(localArtifactsDirectory,"Папка временных файлов");
 
-        Console.WriteLine();
-        Console.WriteLine(
-            "Предварительная проверка успешно завершена.");
-
-        Console.WriteLine(
-            "Среда готова к запуску benchmark.");
+        CompleteProgress();
     }
 
     private static void CheckWindows()
@@ -69,18 +48,14 @@ public sealed class PreflightChecker
                 "Инструмент поддерживается только на Windows.");
         }
 
-        PrintSuccess(
-            "Windows обнаружена.");
+        PrintSuccess("Windows обнаружена.");
     }
 
-    private static void CheckGameSettings(
-        string gameSettingsPath)
+    private static void CheckGameSettings(string gameSettingsPath)
     {
         if (!File.Exists(gameSettingsPath))
         {
-            throw new FileNotFoundException(
-                "GameUserSettings.ini не найден.",
-                gameSettingsPath);
+            throw new FileNotFoundException("GameUserSettings.ini не найден.", gameSettingsPath);
         }
 
         // Проверяем возможность открыть реальный конфиг
@@ -94,79 +69,47 @@ public sealed class PreflightChecker
         {
         }
 
-        var directory =
-            Path.GetDirectoryName(
-                gameSettingsPath)
+        var directory = Path.GetDirectoryName(gameSettingsPath)
             ?? throw new InvalidOperationException(
                 "Не удалось определить папку GameUserSettings.ini.");
 
         // Backup создаётся рядом с оригинальным конфигом,
         // поэтому отдельно проверяем доступ к этой папке.
-        CheckDirectoryWritable(
-            directory,
-            "Папка GameUserSettings.ini");
+        CheckDirectoryWritable(directory, "Папка GameUserSettings.ini");
 
-        PrintSuccess(
-            "GameUserSettings.ini найден и доступен для изменения.");
+        PrintSuccess("GameUserSettings.ini найден и доступен для изменения.");
     }
 
-    private static void CheckBenchmarkExecutable(
-        string gameSettingsPath)
+    private static void CheckBenchmarkExecutable(string gameSettingsPath)
     {
-        var configDirectory =
-            new DirectoryInfo(
-                Path.GetDirectoryName(gameSettingsPath)
-                ?? throw new InvalidOperationException(
-                    "Не удалось определить папку конфига."));
+        var configDirectory = new DirectoryInfo(Path.GetDirectoryName(gameSettingsPath)
+            ?? throw new InvalidOperationException(
+                "Не удалось определить папку конфига."));
 
-        // GameUserSettings.ini находится здесь:
-        //
-        // Black Myth Wukong Benchmark Tool
-        // └─ b1
-        //    └─ Saved
-        //       └─ Config
-        //          └─ Windows
-        //             └─ GameUserSettings.ini
-        //
-        // От Windows поднимаемся:
         // Config -> Saved -> b1 -> корень Benchmark Tool.
-        var benchmarkRoot =
-            configDirectory;
+        var benchmarkRoot = configDirectory;
 
-        for (var level = 0;
-             level < 4;
-             level++)
+        for (var level = 0; level < 4; level++)
         {
-            benchmarkRoot =
-                benchmarkRoot.Parent
-                ?? throw new InvalidOperationException(
-                    "Не удалось определить корневую папку Wukong Benchmark.");
+            benchmarkRoot = benchmarkRoot.Parent ?? throw new InvalidOperationException(
+                "Не удалось определить корневую папку Wukong Benchmark.");
         }
 
-        var executablePath =
-            Path.Combine(
-                benchmarkRoot.FullName,
-                "b1_benchmark.exe");
+        var executablePath = Path.Combine(benchmarkRoot.FullName, "b1_benchmark.exe");
 
         if (!File.Exists(executablePath))
         {
-            throw new FileNotFoundException(
-                "b1_benchmark.exe не найден.",
-                executablePath);
+            throw new FileNotFoundException("b1_benchmark.exe не найден.", executablePath);
         }
 
-        PrintSuccess(
-            $"Wukong Benchmark найден: {executablePath}");
+        PrintSuccess("Wukong Benchmark найден.");
     }
 
     private static void CheckSteamProtocol()
     {
-        using var commandKey =
-            Registry.ClassesRoot.OpenSubKey(
-                @"steam\shell\open\command");
+        using var commandKey = Registry.ClassesRoot.OpenSubKey(@"steam\shell\open\command");
 
-        var command =
-            commandKey?
+        var command = commandKey?
                 .GetValue(null)?
                 .ToString();
 
@@ -177,29 +120,22 @@ public sealed class PreflightChecker
                 "Убедись, что Steam установлен.");
         }
 
-        PrintSuccess(
-            "Протокол steam:// зарегистрирован.");
+        PrintSuccess("Протокол steam:// зарегистрирован.");
     }
 
     private static void CheckProcesses()
     {
-        var runningProcesses =
-            new List<string>();
+        var runningProcesses = new List<string>();
 
-        foreach (var processName in
-                 BenchmarkProcessNames)
+        foreach (var processName in BenchmarkProcessNames)
         {
-            var processes =
-                Process.GetProcessesByName(
-                    processName);
+            var processes = Process.GetProcessesByName(processName);
 
             try
             {
                 foreach (var process in processes)
                 {
-                    runningProcesses.Add(
-                        $"{process.ProcessName} " +
-                        $"(PID {process.Id})");
+                    runningProcesses.Add($"{process.ProcessName} (PID {process.Id})");
                 }
             }
             finally
@@ -215,40 +151,27 @@ public sealed class PreflightChecker
         {
             throw new InvalidOperationException(
                 "Перед запуском необходимо закрыть процессы: " +
-                string.Join(
-                    ", ",
-                    runningProcesses));
+                string.Join(", ", runningProcesses));
         }
 
-        PrintSuccess(
-            "Wukong и PresentMon сейчас не запущены.");
+        PrintSuccess("Wukong и PresentMon сейчас не запущены.");
     }
 
     private static void CheckPresentMonPermissions()
     {
-        using var identity =
-            WindowsIdentity.GetCurrent();
+        using var identity = WindowsIdentity.GetCurrent();
 
-        var principal =
-            new WindowsPrincipal(
-                identity);
+        var principal = new WindowsPrincipal(identity);
 
-        var isAdministrator =
-            principal.IsInRole(
-                WindowsBuiltInRole.Administrator);
+        var isAdministrator = principal.IsInRole(WindowsBuiltInRole.Administrator);
 
         // Встроенная группа Windows:
         // Performance Log Users.
-        var performanceLogUsersSid =
-            new SecurityIdentifier(
-                "S-1-5-32-559");
+        var performanceLogUsersSid = new SecurityIdentifier("S-1-5-32-559");
 
-        var isPerformanceLogUser =
-            principal.IsInRole(
-                performanceLogUsersSid);
+        var isPerformanceLogUser = principal.IsInRole(performanceLogUsersSid);
 
-        if (!isAdministrator &&
-            !isPerformanceLogUser)
+        if (!isAdministrator && !isPerformanceLogUser)
         {
             throw new UnauthorizedAccessException(
                 "Недостаточно прав для PresentMon. " +
@@ -257,47 +180,32 @@ public sealed class PreflightChecker
                 "\"Performance Log Users\".");
         }
 
-        var accessMode =
-            isAdministrator
+        var accessMode = isAdministrator
                 ? "администратор"
                 : "Performance Log Users";
 
-        PrintSuccess(
-            $"Права PresentMon подтверждены ({accessMode}).");
+        PrintSuccess($"Права PresentMon подтверждены ({accessMode}).");
     }
 
-    private static async Task CheckPresentMonAsync(
-        CancellationToken cancellationToken)
+    private static async Task CheckPresentMonAsync(CancellationToken cancellationToken)
     {
         var startInfo =
             new ProcessStartInfo
             {
-                FileName =
-                    "presentmon.exe",
-
-                UseShellExecute =
-                    false,
-
-                CreateNoWindow =
-                    true,
-
-                RedirectStandardOutput =
-                    true,
-
-                RedirectStandardError =
-                    true
+                FileName = "presentmon.exe",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             };
 
-        startInfo.ArgumentList.Add(
-            "--help");
+        startInfo.ArgumentList.Add("--help");
 
         Process? process;
 
         try
         {
-            process =
-                Process.Start(
-                    startInfo);
+            process = Process.Start(startInfo);
         }
         catch (Exception exception)
         {
@@ -310,49 +218,24 @@ public sealed class PreflightChecker
 
         if (process is null)
         {
-            throw new InvalidOperationException(
-                "Не удалось запустить PresentMon.");
+            throw new InvalidOperationException("Не удалось запустить PresentMon.");
         }
 
         using (process)
         {
-            var stdoutTask =
-                process.StandardOutput
-                    .ReadToEndAsync(
-                        cancellationToken);
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
 
-            var stderrTask =
-                process.StandardError
-                    .ReadToEndAsync(
-                        cancellationToken);
+            var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
-            await process.WaitForExitAsync(
-                cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
 
-            var stdout =
-                await stdoutTask;
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
 
-            var stderr =
-                await stderrTask;
+            var output = stdout + Environment.NewLine + stderr;
 
-            var output =
-                stdout +
-                Environment.NewLine +
-                stderr;
-
-            // PresentMon 2.6.0 при вызове --help может вернуть код 1,
-            // несмотря на то что исполняемый файл найден и справка
-            // успешно сформирована.
-            //
-            // Поэтому здесь проверяем не exit code, а характерный
-            // вывод самой программы.
-            var presentMonDetected =
-                output.Contains(
-                    "PresentMon",
-                    StringComparison.OrdinalIgnoreCase) &&
-                output.Contains(
-                    "Capture Target Options",
-                    StringComparison.OrdinalIgnoreCase);
+            var presentMonDetected = output.Contains("PresentMon", StringComparison.OrdinalIgnoreCase) 
+                && output.Contains("Capture Target Options", StringComparison.OrdinalIgnoreCase);
 
             if (!presentMonDetected)
             {
@@ -366,36 +249,24 @@ public sealed class PreflightChecker
             }
         }
 
-        PrintSuccess(
-            "PresentMon найден и запускается.");
+        PrintSuccess("PresentMon найден и запускается.");
     }
 
-    private static void CheckDirectoryWritable(
-        string directory,
-        string description)
+    private static void CheckDirectoryWritable(string directory, string description)
     {
-        directory =
-            Path.GetFullPath(
-                directory);
+        directory = Path.GetFullPath(directory);
 
-        Directory.CreateDirectory(
-            directory);
+        Directory.CreateDirectory(directory);
 
-        var probePath =
-            Path.Combine(
-                directory,
-                $".wbr-write-test-{Guid.NewGuid():N}.tmp");
+        var probePath = Path.Combine(directory, $".wbr-write-test-{Guid.NewGuid():N}.tmp");
 
         try
         {
-            File.WriteAllText(
-                probePath,
-                "write-test");
+            File.WriteAllText(probePath,"write-test");
 
             if (!File.Exists(probePath))
             {
-                throw new IOException(
-                    "Проверочный файл не был создан.");
+                throw new IOException("Проверочный файл не был создан.");
             }
         }
         catch (Exception exception)
@@ -411,25 +282,42 @@ public sealed class PreflightChecker
             {
                 if (File.Exists(probePath))
                 {
-                    File.Delete(
-                        probePath);
+                    File.Delete(probePath);
                 }
             }
             catch
             {
                 // Ошибка удаления тестового файла не должна
-                // скрывать настоящую ошибку preflight.
+                // скрывать настоящую ошибку.
             }
         }
 
-        PrintSuccess(
-            $"{description} доступна для записи.");
+        PrintSuccess($"{description} доступна для записи.");
     }
 
-    private static void PrintSuccess(
-        string message)
+    private static void PrintSuccess(string message)
     {
-        Console.WriteLine(
-            $"[OK] {message}");
+        var text = $"Проверка: {message}";
+
+        var width = Math.Max(_lastProgressLength, text.Length);
+
+        Console.Write('\r');
+        Console.Write(text.PadRight(width));
+
+        _lastProgressLength = text.Length;
+    }
+
+    private static void CompleteProgress()
+    {
+        const string text =
+            "Предварительная проверка успешно завершена.";
+
+        var width = Math.Max(_lastProgressLength, text.Length);
+
+        Console.Write('\r');
+        Console.Write(text.PadRight(width));
+        Console.WriteLine();
+
+        _lastProgressLength = 0;
     }
 }

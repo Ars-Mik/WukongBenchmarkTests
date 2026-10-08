@@ -6,7 +6,6 @@ namespace WukongBenchmarkTests.System;
 
 public sealed class SystemInfoCollector
 {
-
     public SystemInfo Collect()
     {
         if (!OperatingSystem.IsWindows())
@@ -15,86 +14,57 @@ public sealed class SystemInfoCollector
                 "Сбор характеристик системы поддерживается только на Windows.");
         }
 
-        var cpu =
-            ReadCpu();
-
-        var gpus =
-            ReadGpus();
-
-        var totalMemoryBytes =
-            ReadTotalMemory();
-
-        var displayResolution =
-            ReadPrimaryDisplayResolution();
+        var cpu = ReadCpu();
+        var gpus = ReadGpus();
+        var totalMemoryBytes = ReadTotalMemory();
+        var displayResolution = ReadPrimaryDisplayResolution();
 
         return new SystemInfo
         {
             CpuName = cpu.Name,
-
             CpuCores = cpu.Cores,
-
-            CpuLogicalProcessors =
-                cpu.LogicalProcessors,
-
+            CpuLogicalProcessors = cpu.LogicalProcessors,
             Gpus = gpus,
 
-            TotalMemoryBytes =
-                totalMemoryBytes,
+            TotalMemoryBytes = totalMemoryBytes,
 
-            TotalMemoryGigabytes =
-                Math.Round(
-                    totalMemoryBytes /
-                    1024d /
-                    1024d /
-                    1024d,
-                    2),
-
-            OperatingSystem =
-                RuntimeInformation.OSDescription,
-
-            OsArchitecture =
-                RuntimeInformation.OSArchitecture.ToString(),
-
-            ScreenWidth =
-                displayResolution.Width,
-
-            ScreenHeight =
-                displayResolution.Height
+            TotalMemoryGigabytes = Math.Round(
+                totalMemoryBytes / 1024d / 1024d / 1024d,
+                2),
+                
+            OperatingSystem = RuntimeInformation.OSDescription,
+            OsArchitecture = RuntimeInformation.OSArchitecture.ToString(),
+            ScreenWidth = displayResolution.Width,
+            ScreenHeight = displayResolution.Height
         };
     }
 
     private static CpuData ReadCpu()
     {
-        using var searcher =
-            new ManagementObjectSearcher(
-                "SELECT Name, NumberOfCores, " +
-                "NumberOfLogicalProcessors " +
-                "FROM Win32_Processor");
+        using var searcher = new ManagementObjectSearcher(
+            "SELECT Name, NumberOfCores, " +
+            "NumberOfLogicalProcessors " +
+            "FROM Win32_Processor");
 
-        using var results =
-            searcher.Get();
+        using var results = searcher.Get();
 
         foreach (ManagementObject processor in results)
         {
             using (processor)
             {
-                var name =
-                    processor["Name"]?
-                        .ToString()?
-                        .Trim();
+                var name = processor["Name"]?
+                    .ToString()?
+                    .Trim();
 
                 if (string.IsNullOrWhiteSpace(name))
                 {
                     continue;
                 }
 
-                var cores =
-                    Convert.ToInt32(
-                        processor["NumberOfCores"]);
+                var cores = Convert.ToInt32(processor["NumberOfCores"]);
 
                 var logicalProcessors =
-                    Convert.ToInt32(
-                        processor["NumberOfLogicalProcessors"]);
+                    Convert.ToInt32(processor["NumberOfLogicalProcessors"]);
 
                 return new CpuData(
                     name,
@@ -109,45 +79,37 @@ public sealed class SystemInfoCollector
 
     private static IReadOnlyList<GpuInfo> ReadGpus()
     {
-        var gpus =
-            new List<GpuInfo>();
+        var gpus = new List<GpuInfo>();
 
-        using var searcher =
-            new ManagementObjectSearcher(
-                "SELECT Name, DriverVersion " +
-                "FROM Win32_VideoController");
+        using var searcher = new ManagementObjectSearcher(
+            "SELECT Name, DriverVersion " +
+            "FROM Win32_VideoController");
 
-        using var results =
-            searcher.Get();
+        using var results = searcher.Get();
 
         foreach (ManagementObject adapter in results)
         {
             using (adapter)
             {
-                var name =
-                    adapter["Name"]?
-                        .ToString()?
-                        .Trim();
+                var name = adapter["Name"]?
+                    .ToString()?
+                    .Trim();
 
                 if (string.IsNullOrWhiteSpace(name))
                 {
                     continue;
                 }
 
-                var driverVersion =
-                    adapter["DriverVersion"]?
-                        .ToString()?
-                        .Trim();
+                var driverVersion = adapter["DriverVersion"]?
+                    .ToString()?
+                    .Trim();
 
-                gpus.Add(
-                    new GpuInfo
+                gpus.Add(new GpuInfo
                     {
                         Name = name,
-                        DriverVersion =
-                            string.IsNullOrWhiteSpace(
-                                driverVersion)
-                                ? null
-                                : driverVersion
+                        DriverVersion = string.IsNullOrWhiteSpace(driverVersion)
+                            ? null
+                            : driverVersion
                     });
             }
         }
@@ -163,29 +125,24 @@ public sealed class SystemInfoCollector
 
     private static ulong ReadTotalMemory()
     {
-        using var searcher =
-            new ManagementObjectSearcher(
-                "SELECT TotalPhysicalMemory " +
-                "FROM Win32_ComputerSystem");
+        using var searcher = new ManagementObjectSearcher(
+            "SELECT TotalPhysicalMemory " +
+            "FROM Win32_ComputerSystem");
 
-        using var results =
-            searcher.Get();
+        using var results = searcher.Get();
 
         foreach (ManagementObject computer in results)
         {
             using (computer)
             {
-                var value =
-                    computer[
-                        "TotalPhysicalMemory"];
+                var value = computer["TotalPhysicalMemory"];
 
                 if (value is null)
                 {
                     continue;
                 }
 
-                return Convert.ToUInt64(
-                    value);
+                return Convert.ToUInt64(value);
             }
         }
 
@@ -193,27 +150,17 @@ public sealed class SystemInfoCollector
             "Не удалось определить объём оперативной памяти.");
     }
 
-    private sealed record CpuData(
-        string Name,
-        int Cores,
-        int LogicalProcessors);
-
-
-    private static (int Width, int Height)
-    ReadPrimaryDisplayResolution()
+    private static (int Width, int Height) ReadPrimaryDisplayResolution()
     {
-        var mode =
-            new DevMode
-            {
-                Size =
-                    (ushort)Marshal.SizeOf<DevMode>()
-            };
+        var mode = new DevMode
+        {
+            Size = (ushort)Marshal.SizeOf<DevMode>()
+        };
 
-        var success =
-            EnumDisplaySettings(
-                null,
-                EnumCurrentSettings,
-                ref mode);
+        var success = EnumDisplaySettings(
+            null,
+            EnumCurrentSettings,
+            ref mode);
 
         if (!success)
         {
@@ -221,8 +168,7 @@ public sealed class SystemInfoCollector
                 "Не удалось определить физическое разрешение основного экрана.");
         }
 
-        if (mode.PelsWidth == 0 ||
-            mode.PelsHeight == 0)
+        if (mode.PelsWidth == 0 || mode.PelsHeight == 0)
         {
             throw new InvalidOperationException(
                 "Windows вернула некорректное разрешение основного экрана.");
@@ -233,27 +179,24 @@ public sealed class SystemInfoCollector
             checked((int)mode.PelsHeight));
     }
 
-    private const int EnumCurrentSettings =
-        -1;
+    private sealed record CpuData(
+        string Name,
+        int Cores,
+        int LogicalProcessors);
 
-    [DllImport(
-        "user32.dll",
-        CharSet = CharSet.Unicode,
-        SetLastError = true)]
+    private const int EnumCurrentSettings = -1;
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool EnumDisplaySettings(
         string? deviceName,
         int modeNumber,
         ref DevMode deviceMode);
 
-    [StructLayout(
-        LayoutKind.Sequential,
-        CharSet = CharSet.Unicode)]
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct DevMode
     {
-        [MarshalAs(
-            UnmanagedType.ByValTStr,
-            SizeConst = 32)]
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
         public string DeviceName;
 
         public ushort SpecVersion;
@@ -274,9 +217,7 @@ public sealed class SystemInfoCollector
         public short TTOption;
         public short Collate;
 
-        [MarshalAs(
-            UnmanagedType.ByValTStr,
-            SizeConst = 32)]
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
         public string FormName;
 
         public ushort LogPixels;
