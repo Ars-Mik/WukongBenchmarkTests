@@ -207,6 +207,22 @@ results/wukong-benchmark-YYYYMMDD-HHMMSS-fff.json
 Консоль используется для быстрого и удобного чтения.        
 JSON нужен для хранения, сравнения и дальнейшей обработки результатов.
 
+## Автоматические тесты
+
+Для ключевой логики добавлены unit-тесты на xUnit.
+
+Проверяются:
+
+- формирование и округление итоговых FPS-метрик;
+- настройки CPU- и GPU-профилей;
+- изменение Frame Generation;
+- backup и побайтовое восстановление `GameUserSettings.ini`.
+
+Запуск:
+
+```powershell
+dotnet test .\tests\WukongBenchmarkTests.Tests
+
 
 ## Автор
 
